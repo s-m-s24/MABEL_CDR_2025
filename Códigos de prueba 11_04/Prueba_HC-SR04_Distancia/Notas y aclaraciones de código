@@ -1,0 +1,19 @@
+Notas:
+A veces puede que la lectura tire 0 o un valor por encima de los 1000 cm.
+Esto se produce cuando hay un error en la lectura.
+Usualmente, el 0 indica que hubo un problema en la lectura interna del sensor (no es un desperfecto, pasa con todos). 
+Por otro lado, los valores por encima de 1000 suelen aparecer cuando el sensor está en un ángulo al que no funciona (rotar el sensor y ver qué pasa).
+
+Funcionamiento:
+El código usa una función llamada "SensorDist" para leer los sensores. Esta función recibe dos constantes:
+  1. TRIGGER: debe ser el número del pin TRIGGER del sensor. Debe ser de tipo int. Se recomienda usar un tipo constante (int const o define)
+  2. ECHO: debe ser el número del pin ECHO del sensor. Debe ser de tipo int. Se recomienda usar un tipo constante (int const o define)
+
+En esta versión el código funciona con 3 sensores. Éstos son leídos e impresos, sin ningun filtro intermedio.
+Al 11/04 funciona con los tres sensores.
+
+Mejoras a futuro:
+ * Implementación de un filtro y promedio de lecturas
+ * Ampliación de 3 a 5 sensores
+
+Gracias por leer <3
