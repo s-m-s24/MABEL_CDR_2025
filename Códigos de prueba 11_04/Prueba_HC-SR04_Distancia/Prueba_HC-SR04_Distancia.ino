@@ -1,14 +1,17 @@
-const int PIN_TRIG_DER = 5;
-const int PIN_ECHO_DER = 6; 
+//Sensor de Distancia
+//Derecha
+#define PIN_TRIG_DER 7
+#define PIN_ECHO_DER 8 
 int lecturaSensorDistDer = 0;  
-
-const int PIN_TRIG_CEN = 7;
-const int PIN_ECHO_CEN = 8; 
+//Centro
+#define PIN_TRIG_CEN 9
+#define PIN_ECHO_CEN 10 
 int lecturaSensorDistCen = 0;
-
-const int PIN_TRIG_IZQ = 9;
-const int PIN_ECHO_IZQ = 10; 
+//Izquierda
+#define PIN_TRIG_IZQ 11
+#define PIN_ECHO_IZQ 12 
 int lecturaSensorDistIzq = 0;
+
 
 void setup()
 {
