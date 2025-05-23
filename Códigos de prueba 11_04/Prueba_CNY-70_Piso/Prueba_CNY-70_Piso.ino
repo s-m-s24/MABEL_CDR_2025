@@ -13,8 +13,8 @@ Serial.begin (9600);
 
 void loop ()
 {
-lectPiso1 = analogRead (SENS_PISO1);
-Serial.println (lectPiso1)
-lectPiso2 = analogRead (SENS_PISO2);
-Serial.println (lectPiso2)
+lectPisoDer = analogRead (SENS_PISO_DER);
+Serial.println (lectPisoDer);
+lectPisoIzq = analogRead (SENS_PISO_IZQ);
+Serial.println (lectPisoIzq);
 }
