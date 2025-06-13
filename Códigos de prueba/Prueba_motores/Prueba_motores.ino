@@ -78,6 +78,16 @@ void derecha()
   digitalWrite(PIN_MOTOR_IZQ_B, HIGH);
 }
 
+void frenar()
+{
+  digitalWrite(PIN_MOTOR_DER_A, LOW);
+  digitalWrite(PIN_MOTOR_DER_B, LOW);
+
+  digitalWrite(PIN_MOTOR_IZQ_A, LOW);
+  digitalWrite(PIN_MOTOR_IZQ_B, LOW);
+}
+
+//Función del timer
 void ISR_Timer(void) //Crea la función de qué va a hacer cuando se produzca una interrupción
 {
   ms = ms + 1;
@@ -90,11 +100,3 @@ void ISR_Timer(void) //Crea la función de qué va a hacer cuando se produzca un
 }
 
 
-void frenar()
-{
-  digitalWrite(PIN_MOTOR_DER_A, LOW);
-  digitalWrite(PIN_MOTOR_DER_B, LOW);
-
-  digitalWrite(PIN_MOTOR_IZQ_A, LOW);
-  digitalWrite(PIN_MOTOR_IZQ_B, LOW);
-}

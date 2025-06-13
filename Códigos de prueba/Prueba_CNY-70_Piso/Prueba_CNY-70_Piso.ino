@@ -14,7 +14,9 @@ Serial.begin (9600);
 void loop ()
 {
 lectPisoDer = analogRead (SENS_PISO_DER);
-Serial.println (lectPisoDer);
+Serial.print("Derecha: ")
+Serial.print (lectPisoDer);
 lectPisoIzq = analogRead (SENS_PISO_IZQ);
+Serial.print(" | Izquierda: ")
 Serial.println (lectPisoIzq);
 }
