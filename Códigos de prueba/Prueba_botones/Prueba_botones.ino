@@ -1,8 +1,8 @@
 //Botones de estrategias
-#define PIN_BOTON_DER A2
-#define PIN_BOTON_IZQ A3
-#define PULSADO HIGH
-#define N_PULSADO LOW
+#define PIN_BOTON_DER 7
+#define PIN_BOTON_IZQ 8
+#define PULSADO LOW
+#define N_PULSADO HIGH
 bool lectura_Boton_Der = N_PULSADO;
 bool lectura_Boton_Izq = N_PULSADO;
 
@@ -23,7 +23,7 @@ void loop() {
     Serial.print("NO PULSADO");
   }
   lectura_Boton_Izq = digitalRead(PIN_BOTON_IZQ);
-  Serial.print(" | Izquierda: ")
+  Serial.print(" | Izquierda: ");
   if (lectura_Boton_Izq == PULSADO) {
     Serial.println("PULSADO");
   }
