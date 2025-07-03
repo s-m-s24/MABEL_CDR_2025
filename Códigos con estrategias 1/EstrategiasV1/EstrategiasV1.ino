@@ -2,6 +2,12 @@
 #include <TimerOne.h>
 
 ///////////////MOTORES//////////////////
+int segMov = 0;
+#define T_GIRO 3
+#define T_RECTO 6
+#define PMW_BUSQ_LENTO 100
+#define PMW_BUSQ_RAP 255
+#define PMW_ATAQUE_RAP 255
 //Derecha
 #define PIN_MOTOR_DER_A 1
 #define PIN_MOTOR_DER_B 2
@@ -15,6 +21,7 @@ int pmwIzq = 0;
 
 //////////////SENSORES////////////////
 //Distancia
+#define DIST_CERCA 20
 //Derecha
 #define PIN_TRIG_DER 7
 #define PIN_ECHO_DER 8
@@ -164,22 +171,22 @@ void estados() {
 
     case INICIO:
       antiReboteBotonDer();
-      antiReboteBotonIzq();                     //Serial.print("Seleccion: ");Serial.print(seleccion);Serial.print(" | cambio: ");Serial.println(cambioSeleccion);
+      antiReboteBotonIzq();  //Serial.print("Seleccion: ");Serial.print(seleccion);Serial.print(" | cambio: ");Serial.println(cambioSeleccion);
 
-      boton_Der = flagBotDer;                   //Serial.print("Derecha: ");if (boton_Der == PULSADO) {Serial.print("PULSADO");} else {Serial.print("NO PULSADO");}
-      boton_Izq = flagBotIzq;                   //Serial.print(" | Izquierda: ");if (boton_Izq == PULSADO) {Serial.println("PULSADO");} else {Serial.println("NO PULSADO");}
+      boton_Der = flagBotDer;  //Serial.print("Derecha: ");if (boton_Der == PULSADO) {Serial.print("PULSADO");} else {Serial.print("NO PULSADO");}
+      boton_Izq = flagBotIzq;  //Serial.print(" | Izquierda: ");if (boton_Izq == PULSADO) {Serial.println("PULSADO");} else {Serial.println("NO PULSADO");}
 
       //Seleccionar
       //Opciones posibles de seleccion
       int maxOpciones;
-      if (seleccion == 0){
+      if (seleccion == 0) {
         maxOpciones = MAX_DIR;
       }
       //Selección
       if (boton_Der == PULSADO) {
         flagBotDer = N_PULSADO;
         estrategias = estrategias + 1;
-        if (estrategias > maxOpciones){
+        if (estrategias > maxOpciones) {
           estrategias = 1;
         }
         Serial.println(estrategias);
@@ -193,47 +200,51 @@ void estados() {
 
       //Gurado seleccion
       //Paso a elegir búsqueda
-      if ((seleccion == DIRECCION) && (cambioSeleccion == false))
-      {
+      if ((seleccion == DIRECCION) && (cambioSeleccion == false)) {
         maxOpciones = MAX_BUSQ;
         direccion = estrategias;
-        estrategias = 1;                          //Serial.println("direccion");
+        estrategias = 1;  //Serial.println("direccion");
         cambioSeleccion = true;
       }
       //Paso a elegir ataque
-      if ((seleccion == BUSQUEDA) && (cambioSeleccion == false))
-      {
+      if ((seleccion == BUSQUEDA) && (cambioSeleccion == false)) {
         maxOpciones = MAX_ATAQUE;
-        busqueda = estrategias;
-        estrategias = 1;                          //Serial.println("busqueda");
+        busqueda = estrategias + MAX_BUSQ;
+        estrategias = 1;  //Serial.println("busqueda");
         cambioSeleccion = true;
       }
       //Inicio el código
-      if (seleccion == ATAQUE)
-      {
+      if (seleccion == ATAQUE) {
         maxOpciones = MAX_ATAQUE;
-        ataque = estrategias;
-        estado = BUSQUEDA_LENTA;                  //Serial.print("Dirección: "); Serial.print(direccion); Serial.print(" | Busqueda: "); Serial.print(busqueda); Serial.print(" | Ataque: "); Serial.print(ataque);
+        ataque = estrategias + MAX_ATAQUE;
+        estado = BUSQUEDA_LENTA;  //Serial.print("Dirección: "); Serial.print(direccion); Serial.print(" | Busqueda: "); Serial.print(busqueda); Serial.print(" | Ataque: "); Serial.print(ataque);
       }
       break;
 
-      case BUSQUEDA_LENTA:
-      /*Serial.print("LENTA | ");
-      if (direccion == DERECHA){
-        Serial.print("DERECHA | ");
+    case BUSQUEDA_LENTA:
+      Serial.print("LENTA | ");
+      distDer = SensorDist(PIN_TRIG_DER, PIN_ECHO_DER);
+      distCen = SensorDist(PIN_TRIG_CEN, PIN_ECHO_CEN);
+      distIzq = SensorDist(PIN_TRIG_IZQ, PIN_ECHO_IZQ);
+      if ((distDer == false) && (distCen == false) && (distIzq == false)) {
+        pmwDer = PMW_LENTO;
+        pmwIzq = PMW_LENTO;
+        if (segMov <= T_GIRO) {
+          if (direccion == DERECHA) {
+            Serial.print("DERECHA | ");
+            derecha();
+          }
+          if (direccion == IZQUIERDA) {
+            Serial.print("IZQUIERDA | ");
+            izquierda();
+          }
+        } else if ((segMov > T_GIRO) && (segMov <= T_RECTO)) {
+          adelante();
+        }
       }
-      if (direccion == IZQUIERDA){
-        Serial.print("IZQUIERDA | ");
+      if ((distDer == true) && (distCen == true) && (distIzq == true)) {
+        estado = ataque;
       }
-      if (ataque == 1)
-      {
-        Serial.println("RAPIDO");
-      }
-      if (ataque == 2)
-      {
-        Serial.println("LENTO");
-      }
-      */
       break;
 
     case BUSQUEDA_RAPIDA:
@@ -254,6 +265,12 @@ void estados() {
       }
       */
       break;
+
+    case ATAQUE_RAPIDO:
+    pmwDer = PMW_ATAQUE_RAP;
+    pmwCen = PMW_ATAQUE_RAP;
+    pmwIzq = PMW_ATAQUE_RAP;
+    break;
   }
 }
 
@@ -294,7 +311,7 @@ void frenar() {  //TODO LOW
 }
 
 //Función de distancia
-int SensorDist(int TRIGGER, int ECHO) {
+bool SensorDist(int TRIGGER, int ECHO) {
   long tiempo;    //tiempo que demora en llegar el echo
   long distance;  //distancia en centimetros
   digitalWrite(TRIGGER, HIGH);
@@ -302,7 +319,13 @@ int SensorDist(int TRIGGER, int ECHO) {
   digitalWrite(TRIGGER, LOW);
   tiempo = pulseIn(ECHO, HIGH);  //obtenemos el ancho del pulso
   distance = tiempo / 59;        //escalamos el tiempo a una distancia en cm
-  return (distance);
+  bool cerca = false;
+  if (distance <= DIST_CERCA) {
+    cerca = true;
+  } else {
+    cerca = false;
+  }
+  return (cerca);
 }
 
 //Antirrebote derecho
@@ -369,6 +392,7 @@ void ISR_Timer(void)  //Crea la función de qué va a hacer cuando se produzca u
     seg = seg + 1;
     segBotonIzq = segBotonIzq + 1;
     segBotonDer = segBotonDer + 1;
+    segMov = segMov + 1;
     ms = ms - 1000;
   }
   return;
