@@ -2,12 +2,16 @@
 #include <TimerOne.h>
 
 ///////////////MOTORES//////////////////
-int segMov = 0;
-#define T_GIRO 3
-#define T_RECTO 6
-#define PMW_BUSQ_LENTO 100
-#define PMW_BUSQ_RAP 255
+int msMov = 0;
+#define T_GIRO_10 10
+#define T_GIRO_90 100
+#define T_RECTO 100
+#define PMW_LENTO 100
+#define PMW_RAP 255
 #define PMW_ATAQUE_RAP 255
+
+#define PIN_LED1 7
+
 //Derecha
 #define PIN_MOTOR_DER_A 1
 #define PIN_MOTOR_DER_B 2
@@ -18,6 +22,12 @@ int pmwDer = 0;
 #define PIN_MOTOR_IZQ_B 5
 #define PIN_PMW_IZQ 6
 int pmwIzq = 0;
+//Funciones de movimiento
+void buscar(void);
+#define AVANZO 0
+#define GIRO 1
+int estadoBuscar = AVANZO;
+void centrar(void);
 
 //////////////SENSORES////////////////
 //Distancia
@@ -37,11 +47,14 @@ int distIzq = 0;
 
 //Piso
 //Derecha
-#define SENS_PISO_DER A0
-int pisoDer = 0;
+#define SENS_PISO_DER 0
+bool pisoDer = false;
 //Izquierda
-#define SENS_PISO_IZQ A1
-int pisoIzq = 0;
+#define SENS_PISO_IZQ 1
+bool pisoIzq = false;
+//Blanco y negro
+#define  BLANCO 200
+bool leerPiso (int);
 
 /////////BOTONES/////////
 //Común
@@ -85,10 +98,11 @@ int seg = 0;
 #define INICIO 0
 #define BUSQUEDA_LENTA 1
 #define BUSQUEDA_RAPIDA 2
-#define ATAQUE_RAPIDO 3
-#define ATAQUE_LENTO 4
-#define NOS_CAEMOS 5
-int estado = INICIO;
+#define CENTRAR 3
+#define ATAQUE_RAPIDO 4
+#define ATAQUE_LENTO 5
+#define NOS_CAEMOS 6
+int estado = BUSQUEDA_LENTA;
 
 //Selección
 int estrategias = 1;
@@ -119,6 +133,7 @@ void setup() {
   Timer1.initialize(1000);            //Cada cuantos milisegundos queremos que interrumpa el timer, en este caso: 1000
   Timer1.attachInterrupt(ISR_Timer);  //A dónde queremos ir en la interrupción, en este caso: ISR_Timer (la función más abajo);
 
+  
   //Motores
   pinMode(PIN_MOTOR_DER_A, OUTPUT);
   pinMode(PIN_MOTOR_DER_B, OUTPUT);
@@ -129,9 +144,9 @@ void setup() {
   pinMode(PIN_BOTON_DER, INPUT_PULLUP);
   pinMode(PIN_BOTON_IZQ, INPUT_PULLUP);
 
+  pinMode(PIN_LED1, OUTPUT);
   //Distancia
-  /*
-pinMode(PIN_TRIG_IZQ, OUTPUT);
+  pinMode(PIN_TRIG_IZQ, OUTPUT);
   pinMode(PIN_ECHO_IZQ, INPUT);
   digitalWrite(PIN_TRIG_IZQ, LOW);
 
@@ -142,7 +157,11 @@ pinMode(PIN_TRIG_IZQ, OUTPUT);
   pinMode(PIN_TRIG_DER, OUTPUT);
   pinMode(PIN_ECHO_DER, INPUT);
   digitalWrite(PIN_TRIG_DER, LOW);
-*/
+
+  //Piso
+  pinMode(SENS_PISO_IZQ, INPUT);
+  pinMode(SENS_PISO_DER, INPUT);
+
   Serial.println(estado);
 }
 
@@ -152,15 +171,8 @@ void loop() {
   digitalWrite(PIN_PMW_IZQ, pmwIzq);
 
   //Piso
-  pisoDer = analogRead(SENS_PISO_DER);
-  pisoIzq = analogRead(SENS_PISO_IZQ);
-
-  //Distancia
-  /*
-  lecturaSensorDistDer = SensorDist(PIN_TRIG_DER, PIN_ECHO_DER);
-  lecturaSensorDistCen = SensorDist(PIN_TRIG_CEN, PIN_ECHO_CEN);
-  lecturaSensorDistIzq = SensorDist(PIN_TRIG_IZQ, PIN_ECHO_IZQ);
-  */
+  pisoDer = leerPiso(SENS_PISO_DER);
+  pisoIzq = leerPiso(SENS_PISO_IZQ);
 
   estados();
 }
@@ -217,59 +229,59 @@ void estados() {
       if (seleccion == ATAQUE) {
         maxOpciones = MAX_ATAQUE;
         ataque = estrategias + MAX_ATAQUE;
-        estado = BUSQUEDA_LENTA;  //Serial.print("Dirección: "); Serial.print(direccion); Serial.print(" | Busqueda: "); Serial.print(busqueda); Serial.print(" | Ataque: "); Serial.print(ataque);
+        estado = busqueda;  //Serial.print("Dirección: "); Serial.print(direccion); Serial.print(" | Busqueda: "); Serial.print(busqueda); Serial.print(" | Ataque: "); Serial.print(ataque);
       }
       break;
 
     case BUSQUEDA_LENTA:
-      Serial.print("LENTA | ");
+      //Serial.print("LENTA | ");
       distDer = SensorDist(PIN_TRIG_DER, PIN_ECHO_DER);
       distCen = SensorDist(PIN_TRIG_CEN, PIN_ECHO_CEN);
       distIzq = SensorDist(PIN_TRIG_IZQ, PIN_ECHO_IZQ);
-      if ((distDer == false) && (distCen == false) && (distIzq == false)) {
-        pmwDer = PMW_LENTO;
-        pmwIzq = PMW_LENTO;
-        if (segMov <= T_GIRO) {
-          if (direccion == DERECHA) {
-            Serial.print("DERECHA | ");
-            derecha();
-          }
-          if (direccion == IZQUIERDA) {
-            Serial.print("IZQUIERDA | ");
-            izquierda();
-          }
-        } else if ((segMov > T_GIRO) && (segMov <= T_RECTO)) {
-          adelante();
-        }
+      Serial.println(distCen);
+      /*
+      if ((pisoDer == true) || (pisoIzq == true))
+      {
+        estado = NOS_CAEMOS;
       }
-      if ((distDer == true) && (distCen == true) && (distIzq == true)) {
+      if ((distDer == false) && (distCen == false) && (distIzq == false)) {
+        buscar();
+      }
+      */
+      if (distCen == true) {
         estado = ataque;
       }
+      //else if ((distIzq == true) || (distDer == true)) {
+        //centrar();
+      //}
       break;
 
     case BUSQUEDA_RAPIDA:
-      /*Serial.println("RAPIDA");
-      if (direccion == DERECHA){
-        Serial.print("DERECHA | ");
-      }
-      if (direccion == IZQUIERDA){
-        Serial.print("IZQUIERDA | ");
-      }
-      if (ataque == 1)
-      {
-        Serial.println("RAPIDO");
-      }
-      if (ataque == 2)
-      {
-        Serial.println("LENTO");
-      }
-      */
       break;
 
     case ATAQUE_RAPIDO:
-    pmwDer = PMW_ATAQUE_RAP;
-    pmwCen = PMW_ATAQUE_RAP;
-    pmwIzq = PMW_ATAQUE_RAP;
+    digitalWrite(PIN_LED1,HIGH);
+    Serial.println("ataque");
+    distCen = SensorDist(PIN_TRIG_CEN, PIN_ECHO_CEN);
+      pmwDer = PMW_RAP;
+      pmwIzq = PMW_RAP;
+      adelante();
+      if (distCen == false)
+      {
+       estado = busqueda; 
+      }
+      break;
+
+    case NOS_CAEMOS:
+    atras();
+    delay(50);
+    if (msMov <= T_GIRO_10) {
+        derecha();
+      }
+    else{
+      msMov = 0;
+      estado = busqueda;
+    }
     break;
   }
 }
@@ -319,13 +331,14 @@ bool SensorDist(int TRIGGER, int ECHO) {
   digitalWrite(TRIGGER, LOW);
   tiempo = pulseIn(ECHO, HIGH);  //obtenemos el ancho del pulso
   distance = tiempo / 59;        //escalamos el tiempo a una distancia en cm
+  Serial.println(distance);
   bool cerca = false;
   if (distance <= DIST_CERCA) {
     cerca = true;
   } else {
     cerca = false;
   }
-  return (cerca);
+  return cerca;
 }
 
 //Antirrebote derecho
@@ -388,12 +401,65 @@ void antiReboteBotonIzq(void) {
 void ISR_Timer(void)  //Crea la función de qué va a hacer cuando se produzca una interrupción
 {
   ms = ms + 1;
+  msMov = msMov + 1;
   if (ms >= 1000) {
     seg = seg + 1;
     segBotonIzq = segBotonIzq + 1;
     segBotonDer = segBotonDer + 1;
-    segMov = segMov + 1;
     ms = ms - 1000;
   }
   return;
+}
+
+void buscar(void) {
+  switch (estadoBuscar) {
+    case AVANZO:
+      pmwDer = PMW_LENTO;
+      pmwIzq = PMW_LENTO;
+      adelante();
+      if (msMov >= T_RECTO) {
+        estadoBuscar = GIRO;
+        msMov = 0;
+      }
+      break;
+
+    case GIRO:
+      pmwDer = PMW_RAP;
+      pmwIzq = PMW_RAP;
+      if (direccion == DERECHA) {
+        Serial.print("DERECHA | ");
+        derecha();
+      }
+      if (direccion == IZQUIERDA) {
+        Serial.print("IZQUIERDA | ");
+        izquierda();
+      }
+      if (msMov >= T_GIRO_10) {
+        estadoBuscar = AVANZO;
+        msMov = 0;
+      }
+      break;
+  }
+  return;
+}
+
+void centrar (void){
+  if ((distIzq == true) && (distCen == false))
+  {
+    izquierda();
+  }
+  if ((distDer == true) && (distCen == false))
+  {
+    derecha();
+  }
+  return;
+}
+
+bool leerPiso (int SENS_PISO){
+  int piso = analogRead(SENS_PISO);
+  bool enBlanco = false;
+  if (piso <= BLANCO){
+    enBlanco = true;
+  }
+  return enBlanco;
 }
