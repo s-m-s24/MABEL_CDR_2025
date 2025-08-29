@@ -1,5 +1,6 @@
 //Librería
 #include <TimerOne.h>
+#include <ShiftRegister74HC595.h>
 
 ///////////////MOTORES//////////////////
 int msMov = 0;
@@ -12,19 +13,27 @@ int msMov = 0;
 #define PMW_ATAQUE_RAP 150
 #define PMW_GIRO 150
 
-#define PIN_LED1 A0
-#define PIN_LED2 A1
+// --- Mapeo de salidas según tu primer esquema ---
+#define LED1 5   // QB (pin 1 del 74HC595)
+#define LED2 6   // QC (pin 2)
+#define LED3 7   // QD (pin 3)
+#define LED4 15  // QD (pin 3)
 
-//Derecha
-int const PIN_MOTOR_DER_A = 7;
-int const PIN_MOTOR_DER_B = 4;
-int const PIN_PMW_DER = 5;
-int pmwDer = 0;
-//Izquierda
-int const PIN_MOTOR_IZQ_A = 3;
-int const PIN_MOTOR_IZQ_B = 2;
-int const PIN_PMW_IZQ = 6;
-int pmwIzq = 0;
+// --- Pines Arduino Nano conectados al 74HC595 ---
+#define DATA_PIN 11   // SER (pin 14 del 74HC595)
+#define CLOCK_PIN 9   // SRCLK / SH_CP (pin 11 del 74HC595)
+#define LATCH_PIN 10  // RCLK / ST_CP (pin 12 del 74HC595)
+
+
+ShiftRegister74HC595<1> sr(DATA_PIN, CLOCK_PIN, LATCH_PIN);
+
+#define AIN1 4  // Q4
+#define AIN2 3  // Q3
+#define BIN1 1  // Q1
+#define BIN2 2  // Q2
+// PWM directo desde Arduino
+#define PMWA 5  // PWM Motor A
+#define PMWB 6  // PWM Motor B
 //Funciones de movimiento
 void buscar(void);
 #define AVANZO 0
@@ -36,24 +45,27 @@ void centrar(void);
 //Distancia
 #define DIST_CERCA 20
 //Derecha
-#define PIN_TRIG_DER 7
+#define PIN_TRIG_DER 12
 #define PIN_ECHO_DER 8
 int distDer = 0;
 //Centro
-#define PIN_TRIG_CEN 9
-#define PIN_ECHO_CEN 10
+#define PIN_TRIG_CEN 7
+#define PIN_ECHO_CEN 4
 int distCen = 0;
 //Izquierda
-#define PIN_TRIG_IZQ 11
-#define PIN_ECHO_IZQ 12
+#define PIN_TRIG_IZQ 3
+#define PIN_ECHO_IZQ 2
 int distIzq = 0;
+
+int pmwDer = 150;
+int pmwIzq = 150;
 
 //Piso
 //Derecha
-#define SENS_PISO_DER 0
+#define SENS_PISO_DER 5
 bool pisoDer = false;
 //Izquierda
-#define SENS_PISO_IZQ 1
+#define SENS_PISO_IZQ 4
 bool pisoIzq = false;
 //Blanco y negro
 #define BLANCO 400
@@ -79,7 +91,7 @@ int segBotonDer = 0;
 bool boton_Der = N_PULSADO;
 
 //Izquierda
-#define PIN_BOTON_IZQ 8
+#define PIN_BOTON_IZQ 6
 //Antirrebote izquierdo
 void antiReboteBotonIzq(void);
 #define ESPERA_BOT_IZQ 1
@@ -102,10 +114,10 @@ int seg = 0;
 #define BUSQUEDA_LENTA 1
 #define BUSQUEDA_RAPIDA 2
 #define CENTRAR 3
-#define ATAQUE_RAPIDO 4
-#define ATAQUE_LENTO 5
+#define ATAQUE_LENTO 4
+#define ATAQUE_RAPIDO 5
 #define NOS_CAEMOS 6
-int estado = BUSQUEDA_LENTA;
+int estado = INICIO;
 
 //Selección
 int estrategias = 1;
@@ -136,21 +148,13 @@ void setup() {
   Timer1.initialize(1000);            //Cada cuantos milisegundos queremos que interrumpa el timer, en este caso: 1000
   Timer1.attachInterrupt(ISR_Timer);  //A dónde queremos ir en la interrupción, en este caso: ISR_Timer (la función más abajo);
 
-
-  //Motores
-  pinMode(PIN_MOTOR_DER_A, OUTPUT);
-  pinMode(PIN_MOTOR_DER_B, OUTPUT);
-  pinMode(PIN_MOTOR_IZQ_A, OUTPUT);
-  pinMode(PIN_MOTOR_IZQ_B, OUTPUT);
-  digitalWrite(PIN_PMW_DER, OUTPUT);
-  digitalWrite(PIN_PMW_IZQ, OUTPUT);
+  pinMode(DATA_PIN, OUTPUT);
+  pinMode(CLOCK_PIN, OUTPUT);
+  pinMode(LATCH_PIN, OUTPUT);
 
   //Botones
-  pinMode(PIN_BOTON_DER, INPUT_PULLUP);
-  pinMode(PIN_BOTON_IZQ, INPUT_PULLUP);
-
-  pinMode(PIN_LED1, OUTPUT);
-  pinMode(PIN_LED2, OUTPUT);
+  pinMode(PIN_BOTON_DER, INPUT);
+  pinMode(PIN_BOTON_IZQ, INPUT);
 
   //Distancia
   pinMode(PIN_TRIG_IZQ, OUTPUT);
@@ -170,18 +174,21 @@ void setup() {
   pinMode(SENS_PISO_DER, INPUT);
 
   Serial.println(estado);
+  sr.setAllLow();
 }
 
 void loop() {
   //Motores
-  digitalWrite(PIN_PMW_DER, pmwDer);
-  digitalWrite(PIN_PMW_IZQ, pmwIzq);
+  //digitalWrite(PMWA, pmwDer);
+  //digitalWrite(PMWB, pmwIzq);
 
   //Piso
   pisoDer = leerPiso(SENS_PISO_DER);
   pisoIzq = leerPiso(SENS_PISO_IZQ);
 
-  estados();
+  //estados();
+  motorB_adelante();
+  motorA_adelante();
 }
 
 void estados() {
@@ -189,30 +196,41 @@ void estados() {
     Serial.println(estado);
 
     case INICIO:
+      delay(100);
       antiReboteBotonDer();
-      antiReboteBotonIzq();  //Serial.print("Seleccion: ");Serial.print(seleccion);Serial.print(" | cambio: ");Serial.println(cambioSeleccion);
+      antiReboteBotonIzq();
 
-      boton_Der = flagBotDer;  //Serial.print("Derecha: ");if (boton_Der == PULSADO) {Serial.print("PULSADO");} else {Serial.print("NO PULSADO");}
-      boton_Izq = flagBotIzq;  //Serial.print(" | Izquierda: ");if (boton_Izq == PULSADO) {Serial.println("PULSADO");} else {Serial.println("NO PULSADO");}
+      Serial.print("Seleccion: ");
+      Serial.print(seleccion);
+      Serial.print(" | cambio: ");
+      Serial.println(cambioSeleccion);
 
-      if (estrategias == 1) {
-        digitalWrite(PIN_LED1, HIGH);
+      boton_Der = flagBotDer;
+      Serial.print("Derecha: ");
+      if (boton_Der == PULSADO) {
+        Serial.print("PULSADO");
       } else {
-        digitalWrite(PIN_LED1, LOW);
+        Serial.print("NO PULSADO");
       }
-      analogWrite(PIN_LED1, (255 / (seleccion + 1)));
+      boton_Izq = flagBotIzq;
+      Serial.print(" | Izquierda: ");
+      if (boton_Izq == PULSADO) {
+        Serial.println("PULSADO");
+      } else {
+        Serial.println("NO PULSADO");
+      }
 
       //Seleccionar
       //Opciones posibles de seleccion
       int maxOpciones;
       if (seleccion == 0) {
-        maxOpciones = MAX_DIR;
+        maxOpciones = 2;
       }
       //Selección
       if (boton_Der == PULSADO) {
         flagBotDer = N_PULSADO;
         estrategias = estrategias + 1;
-        if (estrategias > maxOpciones) {
+        if (estrategias > 2) {
           estrategias = 1;
         }
         Serial.println(estrategias);
@@ -227,24 +245,28 @@ void estados() {
       //Gurado seleccion
       //Paso a elegir búsqueda
       if ((seleccion == DIRECCION) && (cambioSeleccion == false)) {
-        maxOpciones = MAX_BUSQ;
+        maxOpciones = 2;
         direccion = estrategias;
-        estrategias = 1;  //Serial.println("direccion");
+        estrategias = 1;
+        Serial.println("direccion");
         cambioSeleccion = true;
+        sr.set(LED1, HIGH);
       }
       //Paso a elegir ataque
       if ((seleccion == BUSQUEDA) && (cambioSeleccion == false)) {
-        maxOpciones = MAX_ATAQUE;
-        busqueda = estrategias + MAX_BUSQ;
-        estrategias = 1;  //Serial.println("busqueda");
+        maxOpciones = 2;
+        busqueda = estrategias + 1;
+        estrategias = 1;
+        Serial.println("busqueda");
         cambioSeleccion = true;
+        sr.set(LED2, HIGH);
       }
       //Inicio el código
       if (seleccion == ATAQUE) {
-        maxOpciones = MAX_ATAQUE;
-        digitalWrite(PIN_LED1, LOW);
+        maxOpciones = 2;
         delay(5000);
-        ataque = estrategias + MAX_ATAQUE;
+        sr.set(LED4, HIGH);
+        ataque = estrategias + 3;
         estado = busqueda;
         Serial.print("Dirección: ");
         Serial.print(direccion);
@@ -252,21 +274,26 @@ void estados() {
         Serial.print(busqueda);
         Serial.print(" | Ataque: ");
         Serial.print(ataque);
+        sr.set(LED3, HIGH);
+        motorA_adelante();
+        motorB_adelante();
       }
       break;
 
     case BUSQUEDA_LENTA:
-      //Serial.print("LENTA | ");
-      digitalWrite(PIN_LED1, HIGH);
-      digitalWrite(PIN_LED1, LOW);
+      Serial.print("BUSCA | ");
       distDer = SensorDist(PIN_TRIG_DER, PIN_ECHO_DER);
       distCen = SensorDist(PIN_TRIG_CEN, PIN_ECHO_CEN);
       distIzq = SensorDist(PIN_TRIG_IZQ, PIN_ECHO_IZQ);
-      Serial.println(distCen);
+      Serial.print(distDer);
+      Serial.print(" | ");
+      Serial.print(distCen);
+      Serial.print(" | ");
+      Serial.println(distIzq);
 
-      pmwDer = PMW_BUSQ_LENTO; //SENS: ROJO, AMARILLO, NARANJA, VERDE
-      
-      pmwIzq = PMW_BUSQ_LENTO; //PLACA: ROJO, VERDE, NARANJA, AMARILLO
+      pmwDer = PMW_BUSQ_LENTO;  //SENS: ROJO, AMARILLO, NARANJA, VERDE
+
+      pmwIzq = PMW_BUSQ_LENTO;  //PLACA: ROJO, VERDE, NARANJA, AMARILLO
 
       if ((pisoDer == true) || (pisoIzq == true)) {
         estado = NOS_CAEMOS;
@@ -281,13 +308,15 @@ void estados() {
       break;
 
     case BUSQUEDA_RAPIDA:
-      //Serial.print("LENTA | ");
-      digitalWrite(PIN_LED1, HIGH);
-      digitalWrite(PIN_LED1, HIGH);
       distDer = SensorDist(PIN_TRIG_DER, PIN_ECHO_DER);
       distCen = SensorDist(PIN_TRIG_CEN, PIN_ECHO_CEN);
       distIzq = SensorDist(PIN_TRIG_IZQ, PIN_ECHO_IZQ);
-      Serial.println(distCen);
+      Serial.print(distDer);
+      Serial.print(" | ");
+      Serial.print(distCen);
+      Serial.print(" | ");
+      Serial.println(distIzq);
+
 
       pmwDer = PMW_ATAQUE_RAP;
       pmwIzq = PMW_ATAQUE_RAP;
@@ -305,29 +334,37 @@ void estados() {
       break;
 
     case ATAQUE_RAPIDO:
-      digitalWrite(PIN_LED1, LOW);
-      Serial.println("ataque");
+      Serial.print("ATAQUE RAPIDO");
+      Serial.print(" | ");
+      Serial.println(distCen);
+
       distCen = SensorDist(PIN_TRIG_CEN, PIN_ECHO_CEN);
       pmwDer = PMW_ATAQUE_LENTO;
       pmwIzq = PMW_ATAQUE_LENTO;
-      adelante();
+      motorA_adelante();
+      motorB_adelante();
       if (distCen == false) {
         estado = busqueda;
       }
       break;
 
     case NOS_CAEMOS:
-      digitalWrite(PIN_LED2, HIGH);
-      digitalWrite(PIN_LED1, LOW);
+      Serial.print("CAEMOS |");
+      Serial.print(pisoDer);
+      Serial.print(" | ");
+      Serial.println(pisoIzq);
       if ((pisoDer == true) && (pisoIzq == false)) {  //&&(msMov <= T_GIRO_10)
-        izquierda();
+        motorB_atras();
+        motorA_adelante();
         delay(10);
       } else if ((pisoDer == false) && (pisoIzq == true))  //&&(msMov <= T_GIRO_10)
       {
-        derecha();
+        motorB_adelante();
+        motorA_atras();
         delay(10);
       } else if ((pisoDer == true) && (pisoIzq == true)) {
-        atras();
+        motorA_atras();
+        motorB_atras();
         delay(10);
       } else if (msMov > T_GIRO_10) {
         msMov = 0;
@@ -337,54 +374,54 @@ void estados() {
 
     case ATAQUE_LENTO:
       {
-        digitalWrite(PIN_LED2, HIGH);
-        digitalWrite(PIN_LED1, LOW);
-        Serial.println("ataque");
+        Serial.println("ATAQUE LENTO");
+        Serial.print(" | ");
+        Serial.println(distCen);
         distCen = SensorDist(PIN_TRIG_CEN, PIN_ECHO_CEN);
         pmwDer = PMW_ATAQUE_LENTO;
         pmwIzq = PMW_ATAQUE_LENTO;
-        adelante();
+        motorA_adelante();
+        motorB_adelante();
         if (distCen == false) {
           estado = busqueda;
         }
       }
   }
 }
-
-//FUNCIONES MOTORES
-void adelante() {  //DER_A, IZQ_A HIGH
-  digitalWrite(PIN_MOTOR_DER_A, HIGH);
-  digitalWrite(PIN_MOTOR_DER_B, LOW);
-  digitalWrite(PIN_MOTOR_IZQ_A, HIGH);
-  digitalWrite(PIN_MOTOR_IZQ_B, LOW);
+void motorA_adelante() {
+  sr.set(AIN1, LOW);
+  sr.set(AIN2, HIGH);
+  sr.updateRegisters();  // update the pins to the set values
 }
 
-void atras() {  //DER_B, IZQ_B HIGH
-  digitalWrite(PIN_MOTOR_DER_A, LOW);
-  digitalWrite(PIN_MOTOR_DER_B, HIGH);
-  digitalWrite(PIN_MOTOR_IZQ_A, LOW);
-  digitalWrite(PIN_MOTOR_IZQ_B, HIGH);
+void motorA_atras() {
+  sr.set(AIN1, HIGH);
+  sr.set(AIN2, LOW);
+  sr.updateRegisters();  // update the pins to the set values
 }
 
-void izquierda() {  //DER_B, IZQ_A HIGH
-  digitalWrite(PIN_MOTOR_DER_A, LOW);
-  digitalWrite(PIN_MOTOR_DER_B, HIGH);
-  digitalWrite(PIN_MOTOR_IZQ_A, HIGH);
-  digitalWrite(PIN_MOTOR_IZQ_B, LOW);
+void motorA_stop() {
+  sr.set(AIN1, LOW);
+  sr.set(AIN2, LOW);
+  sr.updateRegisters();  // update the pins to the set values
 }
 
-void derecha() {  //DER_A, IZQ_B HIGH
-  digitalWrite(PIN_MOTOR_DER_A, HIGH);
-  digitalWrite(PIN_MOTOR_DER_B, LOW);
-  digitalWrite(PIN_MOTOR_IZQ_A, LOW);
-  digitalWrite(PIN_MOTOR_IZQ_B, HIGH);
+void motorB_adelante() {
+  sr.set(BIN1, HIGH);
+  sr.set(BIN2, LOW);
+  sr.updateRegisters();  // update the pins to the set values
 }
 
-void frenar() {  //TODO LOW
-  digitalWrite(PIN_MOTOR_DER_A, LOW);
-  digitalWrite(PIN_MOTOR_DER_B, LOW);
-  digitalWrite(PIN_MOTOR_IZQ_A, LOW);
-  digitalWrite(PIN_MOTOR_IZQ_B, LOW);
+void motorB_atras() {
+  sr.set(BIN1, LOW);
+  sr.set(BIN2, HIGH);
+  sr.updateRegisters();  // update the pins to the set values
+}
+
+void motorB_stop() {
+  sr.set(BIN1, LOW);
+  sr.set(BIN2, LOW);
+  sr.updateRegisters();  // update the pins to the set values
 }
 
 //Función de distancia
@@ -396,7 +433,7 @@ bool SensorDist(int TRIGGER, int ECHO) {
   digitalWrite(TRIGGER, LOW);
   tiempo = pulseIn(ECHO, HIGH);  //obtenemos el ancho del pulso
   distance = tiempo / 59;        //escalamos el tiempo a una distancia en cm
-  Serial.println(distance);
+  //Serial.println(distance);
   bool cerca = false;
   if (distance <= DIST_CERCA) {
     cerca = true;
@@ -408,7 +445,7 @@ bool SensorDist(int TRIGGER, int ECHO) {
 
 //Antirrebote derecho
 void antiReboteBotonDer(void) {
-  bool estadoBotonDer = digitalRead(PIN_BOTON_DER);
+  bool estadoBotonDer = analogRead(PIN_BOTON_DER);
   switch (maqBotonDer) {
     case ESPERA_BOT_DER:
       if (estadoBotonDer == PULSADO) {
@@ -436,7 +473,7 @@ void antiReboteBotonDer(void) {
 
 //Antirrebote izquierdo
 void antiReboteBotonIzq(void) {
-  bool estadoBotonIzq = digitalRead(PIN_BOTON_IZQ);
+  bool estadoBotonIzq = analogRead(PIN_BOTON_IZQ);
   switch (maqBotonIzq) {
     case ESPERA_BOT_IZQ:
       if (estadoBotonIzq == PULSADO) {
@@ -477,11 +514,11 @@ void ISR_Timer(void)  //Crea la función de qué va a hacer cuando se produzca u
 }
 
 void buscar(void) {
+  Serial.println("BUSCAR");
   switch (estadoBuscar) {
     case AVANZO:
-      pmwDer = PMW_BUSQ_LENTO;
-      pmwIzq = PMW_BUSQ_LENTO;
-      adelante();
+      motorA_adelante();
+      motorB_adelante();
       if (msMov >= T_RECTO) {
         estadoBuscar = GIRO;
         msMov = 0;
@@ -492,12 +529,14 @@ void buscar(void) {
       pmwDer = PMW_BUSQ_RAP;
       pmwIzq = PMW_BUSQ_RAP;
       if ((msMov >= T_GIRO_10) && (direccion == DERECHA)) {
-        Serial.print("DERECHA | ");
-        derecha();
+        //Serial.print("DERECHA | ");
+        motorA_atras();
+        motorB_adelante();
       }
       if ((msMov >= T_GIRO_10) && (direccion == IZQUIERDA)) {
-        Serial.print("IZQUIERDA | ");
-        izquierda();
+        //Serial.print("IZQUIERDA | ");
+        motorB_atras();
+        motorA_adelante();
       }
       if (msMov >= T_GIRO_10) {
         estadoBuscar = AVANZO;
@@ -510,10 +549,12 @@ void buscar(void) {
 
 void centrar(void) {
   if ((distIzq == true) && (distCen == false)) {
-    derecha();
+    motorA_atras();
+    motorB_adelante();
     Serial.println("der");
   } else if ((distDer == true) && (distCen == false)) {
-    izquierda();
+    motorA_adelante();
+    motorB_atras();
     Serial.println("izq");
   }
   return;
