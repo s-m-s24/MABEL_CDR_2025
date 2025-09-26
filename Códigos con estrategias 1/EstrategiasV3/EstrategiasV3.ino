@@ -194,7 +194,6 @@ void estados() {
     Serial.println(estado);
 
     case INICIO:
-      delay(100);
       antiReboteBotonDer();
       antiReboteBotonIzq();
 
