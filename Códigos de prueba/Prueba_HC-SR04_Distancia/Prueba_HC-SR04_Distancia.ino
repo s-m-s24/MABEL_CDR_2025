@@ -1,7 +1,7 @@
 //Sensor de Distancia
 //Derecha
-#define PIN_TRIG_DER 3
-#define PIN_ECHO_DER 2
+#define PIN_TRIG_DER 4
+#define PIN_ECHO_DER 3
 int lecturaSensorDistDer = 0;  
 //Centro
 #define PIN_TRIG_CEN 12
